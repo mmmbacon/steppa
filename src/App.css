@@ -60,6 +60,7 @@
 }
 
 .machine-panel {
+  position: relative;
   width: min(1120px, 100%);
   padding: clamp(24px, 4vw, 48px);
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -67,6 +68,66 @@
   background: var(--panel-bg);
   box-shadow: 0 28px 80px var(--glow-color);
   backdrop-filter: blur(18px);
+}
+
+.reverb-knob {
+  position: absolute;
+  top: clamp(18px, 3vw, 28px);
+  right: clamp(18px, 3vw, 28px);
+  z-index: 2;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 28% 22%, rgba(255, 255, 255, 0.55), transparent 42%),
+    radial-gradient(circle at 72% 78%, rgba(180, 108, 255, 0.22), transparent 48%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.22), rgba(180, 108, 255, 0.14) 48%, rgba(53, 16, 95, 0.28));
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.65),
+    inset 0 -10px 18px rgba(53, 16, 95, 0.22),
+    0 10px 28px rgba(53, 16, 95, 0.38);
+  backdrop-filter: blur(16px) saturate(1.35);
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.reverb-knob::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.12), transparent 62%);
+  pointer-events: none;
+}
+
+.reverb-knob::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  width: 3px;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 0 6px rgba(255, 255, 255, 0.55),
+    0 2px 4px rgba(53, 16, 95, 0.45);
+  transform: translateX(-50%) rotate(var(--knob-angle, -135deg));
+  transform-origin: 50% 20px;
+  pointer-events: none;
+}
+
+.reverb-knob.is-dragging {
+  cursor: ns-resize;
+  user-select: none;
+}
+
+.reverb-knob:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.85);
+  outline-offset: 4px;
 }
 
 .hero {
@@ -132,6 +193,24 @@ h1 {
 .control-group strong {
   min-width: 48px;
   text-align: center;
+}
+
+.control-group > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  line-height: 1;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.control-group > button:first-of-type {
+  padding-bottom: 2px;
 }
 
 .toolbar-select {

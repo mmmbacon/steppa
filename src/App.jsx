@@ -1,14 +1,17 @@
 import './App.css';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Tone from 'tone';
 import { createDrumMachine } from './audio/drumMachine';
 import {
   createDefaultVoice,
   normalizeVoice,
 } from './audio/soundRegistry';
+import ReverbKnob from './components/ReverbKnob';
 import StepButton from './components/StepButton';
 import TrackVoiceControls from './components/TrackVoiceControls';
+import { DRUM_TRACK_IDS, getPersistedDrumVoice, useDrumVoiceStore } from './store/useDrumVoiceStore';
 import { usePatternStore } from './store/usePatternStore';
+import { useSettingsStore } from './store/useSettingsStore';
 
 const STEP_COUNT = 16;
 const STEPS = Array.from({ length: STEP_COUNT }, (_, index) => index);
@@ -127,12 +130,12 @@ const getBassVoiceNotes = (rootIndex, mode = SCALE_MODES.minor.id) => {
   };
 };
 
-const createInitialTrackVoices = () =>
-  ALL_TRACKS.reduce((voices, track) => {
+const createInitialBassVoices = () =>
+  BASSLINE_TRACKS.reduce((voices, track) => {
     const bassVoiceNotes = getBassVoiceNotes(0);
     voices[track.id] = {
       ...createDefaultVoice(track.id),
-      ...(bassVoiceNotes[track.id] ? { note: bassVoiceNotes[track.id] } : {}),
+      note: bassVoiceNotes[track.id],
     };
     return voices;
   }, {});
@@ -147,25 +150,35 @@ function App() {
   const [bassScaleRoot, setBassScaleRoot] = useState(0);
   const [bassScaleMode, setBassScaleMode] = useState(SCALE_MODES.minor.id);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [trackVoices, setTrackVoices] = useState(createInitialTrackVoices);
+  const [bassVoices, setBassVoices] = useState(createInitialBassVoices);
+  const drumVoices = useDrumVoiceStore((state) => state.voices);
+  const setDrumVoice = useDrumVoiceStore((state) => state.setVoice);
   const pattern = usePatternStore((state) => state.patterns);
   const initializePatterns = usePatternStore((state) => state.initializePatterns);
   const togglePatternStep = usePatternStore((state) => state.toggleStep);
   const clearTracks = usePatternStore((state) => state.clearTracks);
   const resetTracks = usePatternStore((state) => state.resetTracks);
+  const reverbAmount = useSettingsStore((state) => state.reverbAmount);
+  const setReverbAmount = useSettingsStore((state) => state.setReverbAmount);
 
   const activeInstrument = INSTRUMENTS[activeInstrumentId];
   const activeTracks = activeInstrument.tracks;
   const bassVoiceNotes = getBassVoiceNotes(bassScaleRoot, bassScaleMode);
-  const getTrackVoice = (trackId) => ({
-    ...createDefaultVoice(trackId),
-    ...(bassVoiceNotes[trackId] ? { note: bassVoiceNotes[trackId] } : {}),
-    ...(trackVoices[trackId] ?? {}),
-  });
+  const getTrackVoice = (trackId) => {
+    if (DRUM_TRACK_IDS.includes(trackId)) {
+      return getPersistedDrumVoice(trackId, drumVoices);
+    }
+
+    return normalizeVoice(trackId, {
+      ...createDefaultVoice(trackId),
+      note: bassVoiceNotes[trackId],
+      ...(bassVoices[trackId] ?? {}),
+    });
+  };
 
   const drumMachineRef = useRef(null);
   const patternRef = useRef(pattern);
-  const trackVoicesRef = useRef(trackVoices);
+  const trackVoicesRef = useRef({});
   const stepRef = useRef(0);
 
   useEffect(() => {
@@ -177,16 +190,11 @@ function App() {
   }, [initializePatterns]);
 
   useEffect(() => {
-    const nextTrackVoices = {
-      ...trackVoices,
-      ...ALL_TRACK_IDS.reduce((voices, trackId) => {
-        voices[trackId] = getTrackVoice(trackId);
-        return voices;
-      }, {}),
-    };
-
-    trackVoicesRef.current = nextTrackVoices;
-  }, [trackVoices, bassScaleRoot, bassScaleMode]);
+    trackVoicesRef.current = ALL_TRACK_IDS.reduce((voices, trackId) => {
+      voices[trackId] = getTrackVoice(trackId);
+      return voices;
+    }, {});
+  }, [bassVoices, bassScaleRoot, bassScaleMode, drumVoices]);
 
   useEffect(() => {
     Tone.Transport.bpm.value = bpm;
@@ -205,7 +213,7 @@ function App() {
         normalizeVoice(trackId, getTrackVoice(trackId)),
       );
     });
-  }, [trackVoices]);
+  }, [bassVoices, drumVoices, bassScaleRoot, bassScaleMode]);
 
   useEffect(() => {
     Tone.Transport.bpm.value = bpm;
@@ -233,6 +241,7 @@ function App() {
     }, {});
 
     drumMachineRef.current = createDrumMachine(voices, ALL_TRACK_IDS);
+    drumMachineRef.current.setReverbAmount(reverbAmount);
     Tone.Transport.cancel();
     Tone.Transport.scheduleRepeat((time) => {
       const step = stepRef.current;
@@ -251,6 +260,14 @@ function App() {
       stepRef.current = (step + 1) % STEP_COUNT;
     }, '16n');
   };
+
+  const handleReverbAmountChange = useCallback((amount, { live = false } = {}) => {
+    if (!live) {
+      setReverbAmount(amount);
+    }
+
+    drumMachineRef.current?.setReverbAmount(amount, live);
+  }, [setReverbAmount]);
 
   const handlePlay = async () => {
     await initializeAudio();
@@ -301,9 +318,16 @@ function App() {
   };
 
   const handleVoiceChange = (trackId, nextVoice) => {
-    setTrackVoices((currentVoices) => ({
+    const normalizedVoice = normalizeVoice(trackId, nextVoice);
+
+    if (DRUM_TRACK_IDS.includes(trackId)) {
+      setDrumVoice(trackId, normalizedVoice);
+      return;
+    }
+
+    setBassVoices((currentVoices) => ({
       ...currentVoices,
-      [trackId]: normalizeVoice(trackId, nextVoice),
+      [trackId]: normalizedVoice,
     }));
   };
 
@@ -320,7 +344,7 @@ function App() {
     const bassVoiceNotes = getBassVoiceNotes(rootIndex, bassScaleMode);
 
     setBassScaleRoot(rootIndex);
-    setTrackVoices((currentVoices) => ({
+    setBassVoices((currentVoices) => ({
       ...currentVoices,
       bassOne: normalizeVoice('bassOne', {
         ...currentVoices.bassOne,
@@ -346,7 +370,7 @@ function App() {
     const bassVoiceNotes = getBassVoiceNotes(bassScaleRoot, mode);
 
     setBassScaleMode(mode);
-    setTrackVoices((currentVoices) => ({
+    setBassVoices((currentVoices) => ({
       ...currentVoices,
       bassOne: normalizeVoice('bassOne', {
         ...currentVoices.bassOne,
@@ -477,6 +501,13 @@ function App() {
       </nav>
 
       <section className="machine-panel" aria-label={`STEPPY.DEV ${activeInstrument.name}`}>
+        {activeInstrumentId === INSTRUMENTS.bassline.id && (
+          <ReverbKnob
+            onAmountChange={handleReverbAmountChange}
+            onPrepareAudio={initializeAudio}
+          />
+        )}
+
         <div className="hero">
           <p className="eyebrow">computer controlled</p>
           <h1>STEPPY.DEV</h1>

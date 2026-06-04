@@ -1,7 +1,7 @@
 import * as Tone from 'tone';
 import { getSampleUrl, VoiceMode } from './soundRegistry';
 
-function createSynthEngine(trackId, voice, destination, reverb) {
+function createSynthEngine(trackId, voice, { drumBus, bassReverbSend }) {
   if (trackId === 'kick') {
     const kick = new Tone.MembraneSynth({
       pitchDecay: 0.045,
@@ -13,7 +13,7 @@ function createSynthEngine(trackId, voice, destination, reverb) {
         sustain: 0.01,
         release: 0.08,
       },
-    }).connect(destination);
+    }).connect(drumBus);
 
     return {
       trigger(time) {
@@ -34,7 +34,7 @@ function createSynthEngine(trackId, voice, destination, reverb) {
         sustain: 0,
         release: 0.05,
       },
-    }).connect(destination);
+    }).connect(drumBus);
 
     const snareBody = new Tone.Synth({
       oscillator: { type: 'triangle' },
@@ -44,7 +44,7 @@ function createSynthEngine(trackId, voice, destination, reverb) {
         sustain: 0,
         release: 0.08,
       },
-    }).connect(destination);
+    }).connect(drumBus);
 
     return {
       trigger(time) {
@@ -59,7 +59,7 @@ function createSynthEngine(trackId, voice, destination, reverb) {
   }
 
   if (trackId === 'clap') {
-    const clapOutput = new Tone.Gain(1.35).connect(destination);
+    const clapOutput = new Tone.Gain(1.35).connect(drumBus);
     const clapFilter = new Tone.Filter({
       type: 'bandpass',
       frequency: 1050,
@@ -77,7 +77,6 @@ function createSynthEngine(trackId, voice, destination, reverb) {
     });
 
     clapFilter.chain(clapHighpass, clapDrive, clapOutput);
-    clapDrive.connect(reverb);
 
     const clapBursts = Array.from({ length: 4 }, (_, index) =>
       new Tone.NoiseSynth({
@@ -136,7 +135,7 @@ function createSynthEngine(trackId, voice, destination, reverb) {
       modulationIndex: 18,
       resonance: 5000,
       octaves: 1.5,
-    }).connect(destination);
+    }).connect(drumBus);
 
     return {
       trigger(time) {
@@ -160,7 +159,7 @@ function createSynthEngine(trackId, voice, destination, reverb) {
       modulationIndex: 24,
       resonance: 6000,
       octaves: 1.8,
-    }).connect(destination);
+    }).connect(drumBus);
 
     return {
       trigger(time) {
@@ -203,7 +202,13 @@ function createSynthEngine(trackId, voice, destination, reverb) {
         octaves: 3.6,
       },
       volume: -8,
-    }).connect(destination);
+    });
+
+    bass.connect(drumBus);
+
+    if (bassReverbSend) {
+      bass.connect(bassReverbSend);
+    }
 
     return {
       trigger(time) {
@@ -221,7 +226,7 @@ function createSynthEngine(trackId, voice, destination, reverb) {
   };
 }
 
-function createSampleEngine(sampleId, destination) {
+function createSampleEngine(sampleId, drumBus) {
   const url = getSampleUrl(sampleId);
 
   if (!url) {
@@ -239,7 +244,7 @@ function createSampleEngine(sampleId, destination) {
     onload: () => {
       loaded = true;
     },
-  }).connect(destination);
+  }).connect(drumBus);
 
   return {
     get loaded() {
@@ -256,12 +261,26 @@ function createSampleEngine(sampleId, destination) {
   };
 }
 
-function createTrackEngine(trackId, voice, destination, reverb) {
+function createTrackEngine(trackId, voice, routing) {
   if (voice.mode === VoiceMode.SAMPLE && voice.sampleId) {
-    return createSampleEngine(voice.sampleId, destination);
+    return createSampleEngine(voice.sampleId, routing.drumBus);
   }
 
-  return createSynthEngine(trackId, voice, destination, reverb);
+  return createSynthEngine(trackId, voice, routing);
+}
+
+function clampReverbAmount(amountPercent) {
+  return Math.min(100, Math.max(0, amountPercent));
+}
+
+function applyReverbSend(bassReverbSend, amountPercent) {
+  const amount = clampReverbAmount(amountPercent) / 100;
+  bassReverbSend.gain.value = amount * 0.78;
+}
+
+function applyReverbDecay(reverb, amountPercent) {
+  const amount = clampReverbAmount(amountPercent) / 100;
+  reverb.decay = 0.18 + amount * 8.4;
 }
 
 /**
@@ -271,13 +290,18 @@ function createTrackEngine(trackId, voice, destination, reverb) {
 export function createDrumMachine(voices, trackIds) {
   const limiter = new Tone.Limiter(-1).toDestination();
   const drumBus = new Tone.Gain(0.85).connect(limiter);
-  const reverb = new Tone.Reverb({ decay: 1.2, wet: 0.16 }).connect(limiter);
+  const reverb = new Tone.Reverb({ decay: 1.45, wet: 0.16 }).connect(limiter);
+  const bassReverbSend = new Tone.Gain(0).connect(reverb);
+  const routing = { drumBus, bassReverbSend };
+  let decayUpdateTimer = null;
+
+  reverb.wet.value = 1;
 
   /** @type {Record<string, ReturnType<typeof createTrackEngine>>} */
   const engines = {};
 
   for (const trackId of trackIds) {
-    engines[trackId] = createTrackEngine(trackId, voices[trackId], drumBus, reverb);
+    engines[trackId] = createTrackEngine(trackId, voices[trackId], routing);
   }
 
   return {
@@ -286,10 +310,37 @@ export function createDrumMachine(voices, trackIds) {
     },
     setVoice(trackId, voice) {
       engines[trackId]?.dispose();
-      engines[trackId] = createTrackEngine(trackId, voice, drumBus, reverb);
+      engines[trackId] = createTrackEngine(trackId, voice, routing);
+    },
+    setReverbAmount(amountPercent, live = false) {
+      applyReverbSend(bassReverbSend, amountPercent);
+
+      if (live) {
+        if (decayUpdateTimer) {
+          clearTimeout(decayUpdateTimer);
+        }
+
+        decayUpdateTimer = setTimeout(() => {
+          applyReverbDecay(reverb, amountPercent);
+          decayUpdateTimer = null;
+        }, 90);
+        return;
+      }
+
+      if (decayUpdateTimer) {
+        clearTimeout(decayUpdateTimer);
+        decayUpdateTimer = null;
+      }
+
+      applyReverbDecay(reverb, amountPercent);
     },
     dispose() {
+      if (decayUpdateTimer) {
+        clearTimeout(decayUpdateTimer);
+      }
+
       Object.values(engines).forEach((engine) => engine.dispose());
+      bassReverbSend.dispose();
       reverb.dispose();
       drumBus.dispose();
       limiter.dispose();
