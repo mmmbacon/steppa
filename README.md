@@ -1,12 +1,22 @@
 # STEPPY.DEV
 
-STEPPY.DEV is a browser-based drum machine and 16-step sequencer built with React, Vite, and Tone.js.
+**Live app:** [https://steppa-two.vercel.app/](https://steppa-two.vercel.app/)
+
+STEPPY.DEV is a browser-based drum machine and 16-step sequencer built with React, Vite, Tone.js, and [Zustand](https://github.com/pmndrs/zustand) for app state (pattern, voices, settings).
 
 ## Scripts
 
 - `npm start` / `npm run dev` starts the Vite dev server.
 - `npm run build` creates a production build in `dist`.
 - `npm run preview` serves the production build locally.
+
+## Future plans
+
+- Mixer
+- Track level volume
+- House Piano
+- Recording / Timeline
+- Export
 
 ## Notes
 
