@@ -7,6 +7,12 @@ STEPPY.DEV is a browser-based drum machine and 16-step sequencer built with Reac
 
 I built this for fun, and because I love electronic music!
 
+## Screenshots
+
+<img width="3840" height="2160" alt="screenshot1" src="https://github.com/user-attachments/assets/cd87992e-792e-4a47-9a75-628f351c2823" />
+
+<img width="3840" height="2160" alt="screenshot2" src="https://github.com/user-attachments/assets/04c73e00-fb34-4dd1-a834-673262145479" />
+
 ## How to use
 
 Open the [live app](https://steppa-two.vercel.app/) or run `npm start`, then press **Play** (or **Space**) to start the transport. The browser needs that click or keypress to unlock audio.
@@ -81,7 +87,5 @@ Drums default to synth voices; TR-909 samples are optional per track. Bass is sy
 
 ## Screenshots
 
-<img width="3840" height="2160" alt="screenshot1" src="https://github.com/user-attachments/assets/cd87992e-792e-4a47-9a75-628f351c2823" />
 
-<img width="3840" height="2160" alt="screenshot2" src="https://github.com/user-attachments/assets/04c73e00-fb34-4dd1-a834-673262145479" />
 
