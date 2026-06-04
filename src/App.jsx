@@ -1,7 +1,13 @@
 import './App.css';
 import { useEffect, useRef, useState } from 'react';
 import * as Tone from 'tone';
+import { createDrumMachine } from './audio/drumMachine';
+import {
+  createDefaultVoice,
+  normalizeVoice,
+} from './audio/soundRegistry';
 import StepButton from './components/StepButton';
+import TrackVoiceControls from './components/TrackVoiceControls';
 
 const STEP_COUNT = 16;
 const STEPS = Array.from({ length: STEP_COUNT }, (_, index) => index);
@@ -39,125 +45,21 @@ const TRACKS = [
   },
 ];
 
+const TRACK_IDS = TRACKS.map((track) => track.id);
+
 const createInitialPattern = () =>
   TRACKS.reduce((pattern, track) => {
     pattern[track.id] = track.pattern.map(Boolean);
     return pattern;
   }, {});
 
+const createInitialTrackVoices = () =>
+  TRACKS.reduce((voices, track) => {
+    voices[track.id] = createDefaultVoice(track.id);
+    return voices;
+  }, {});
+
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
-
-const createDrumMachine = () => {
-  const limiter = new Tone.Limiter(-1).toDestination();
-  const drumBus = new Tone.Gain(0.85).connect(limiter);
-  const reverb = new Tone.Reverb({ decay: 1.2, wet: 0.16 }).connect(limiter);
-
-  const kick = new Tone.MembraneSynth({
-    pitchDecay: 0.045,
-    octaves: 8,
-    oscillator: { type: 'sine' },
-    envelope: {
-      attack: 0.001,
-      decay: 0.35,
-      sustain: 0.01,
-      release: 0.08,
-    },
-  }).connect(drumBus);
-
-  const snareNoise = new Tone.NoiseSynth({
-    noise: { type: 'white' },
-    envelope: {
-      attack: 0.001,
-      decay: 0.14,
-      sustain: 0,
-      release: 0.05,
-    },
-  }).connect(drumBus);
-
-  const snareBody = new Tone.Synth({
-    oscillator: { type: 'triangle' },
-    envelope: {
-      attack: 0.001,
-      decay: 0.1,
-      sustain: 0,
-      release: 0.08,
-    },
-  }).connect(drumBus);
-
-  const clap = new Tone.NoiseSynth({
-    noise: { type: 'white' },
-    envelope: {
-      attack: 0.01,
-      decay: 0.22,
-      sustain: 0,
-      release: 0.08,
-    },
-  }).connect(reverb);
-
-  const closedHat = new Tone.MetalSynth({
-    frequency: 280,
-    envelope: {
-      attack: 0.001,
-      decay: 0.06,
-      release: 0.02,
-    },
-    harmonicity: 5.1,
-    modulationIndex: 18,
-    resonance: 5000,
-    octaves: 1.5,
-  }).connect(drumBus);
-
-  const openHat = new Tone.MetalSynth({
-    frequency: 240,
-    envelope: {
-      attack: 0.001,
-      decay: 0.48,
-      release: 0.18,
-    },
-    harmonicity: 5.1,
-    modulationIndex: 24,
-    resonance: 6000,
-    octaves: 1.8,
-  }).connect(drumBus);
-
-  return {
-    trigger(trackId, time) {
-      if (trackId === 'kick') {
-        kick.triggerAttackRelease('C1', '8n', time);
-      }
-
-      if (trackId === 'snare') {
-        snareNoise.triggerAttackRelease('16n', time);
-        snareBody.triggerAttackRelease('G2', '16n', time);
-      }
-
-      if (trackId === 'clap') {
-        clap.triggerAttackRelease('16n', time);
-      }
-
-      if (trackId === 'closedHat') {
-        closedHat.triggerAttackRelease('32n', time, 0.55);
-      }
-
-      if (trackId === 'openHat') {
-        openHat.triggerAttackRelease('8n', time, 0.45);
-      }
-    },
-    dispose() {
-      [
-        kick,
-        snareNoise,
-        snareBody,
-        clap,
-        closedHat,
-        openHat,
-        reverb,
-        drumBus,
-        limiter,
-      ].forEach((node) => node.dispose());
-    },
-  };
-};
 
 function App() {
   const [activeStep, setActiveStep] = useState(-1);
@@ -165,9 +67,11 @@ function App() {
   const [swing, setSwing] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [pattern, setPattern] = useState(createInitialPattern);
+  const [trackVoices, setTrackVoices] = useState(createInitialTrackVoices);
 
   const drumMachineRef = useRef(null);
   const patternRef = useRef(pattern);
+  const trackVoicesRef = useRef(trackVoices);
   const stepRef = useRef(0);
 
   useEffect(() => {
@@ -175,10 +79,27 @@ function App() {
   }, [pattern]);
 
   useEffect(() => {
+    trackVoicesRef.current = trackVoices;
+  }, [trackVoices]);
+
+  useEffect(() => {
     Tone.Transport.bpm.value = bpm;
     Tone.Transport.swing = swing / 100;
     Tone.Transport.swingSubdivision = '16n';
   }, [bpm, swing]);
+
+  useEffect(() => {
+    if (!drumMachineRef.current) {
+      return;
+    }
+
+    TRACK_IDS.forEach((trackId) => {
+      drumMachineRef.current?.setVoice(
+        trackId,
+        normalizeVoice(trackId, trackVoices[trackId]),
+      );
+    });
+  }, [trackVoices]);
 
   useEffect(() => {
     Tone.Transport.bpm.value = bpm;
@@ -200,7 +121,12 @@ function App() {
       return;
     }
 
-    drumMachineRef.current = createDrumMachine();
+    const voices = TRACK_IDS.reduce((acc, trackId) => {
+      acc[trackId] = normalizeVoice(trackId, trackVoicesRef.current[trackId]);
+      return acc;
+    }, {});
+
+    drumMachineRef.current = createDrumMachine(voices, TRACK_IDS);
     Tone.Transport.cancel();
     Tone.Transport.scheduleRepeat((time) => {
       const step = stepRef.current;
@@ -234,6 +160,18 @@ function App() {
     stepRef.current = 0;
     setActiveStep(-1);
     setIsPlaying(false);
+  };
+
+  const previewTrack = async (trackId) => {
+    await initializeAudio();
+    drumMachineRef.current?.trigger(trackId, Tone.now());
+  };
+
+  const handleVoiceChange = (trackId, nextVoice) => {
+    setTrackVoices((currentVoices) => ({
+      ...currentVoices,
+      [trackId]: normalizeVoice(trackId, nextVoice),
+    }));
   };
 
   const handleBpmChange = (increment) => {
@@ -328,10 +266,12 @@ function App() {
 
           {TRACKS.map((track) => (
             <div className="track-row" role="row" key={track.id}>
-              <div className="track-label">
-                <strong>{track.label}</strong>
-                <span>{track.name}</span>
-              </div>
+              <TrackVoiceControls
+                onPreview={previewTrack}
+                onVoiceChange={handleVoiceChange}
+                track={track}
+                voice={trackVoices[track.id]}
+              />
 
               {STEPS.map((step) => (
                 <StepButton
