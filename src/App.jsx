@@ -208,11 +208,10 @@ function App() {
     <main className="app-shell">
       <section className="machine-panel" aria-label="STEPPY.DEV drum machine">
         <div className="hero">
-          <p className="eyebrow">Browser drum machine</p>
+          <p className="eyebrow">computer controlled</p>
           <h1>STEPPY.DEV</h1>
           <p className="subtitle">
-            A modern React and Tone.js step sequencer, rebuilt to be fast,
-            hackable, and fun to keep expanding.
+            A modern React and Tone.js step drum machine.
           </p>
         </div>
 
