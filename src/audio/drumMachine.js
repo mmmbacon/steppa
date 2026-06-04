@@ -1,7 +1,7 @@
 import * as Tone from 'tone';
 import { getSampleUrl, VoiceMode } from './soundRegistry';
 
-function createSynthEngine(trackId, destination, reverb) {
+function createSynthEngine(trackId, voice, destination, reverb) {
   if (trackId === 'kick') {
     const kick = new Tone.MembraneSynth({
       pitchDecay: 0.045,
@@ -172,6 +172,49 @@ function createSynthEngine(trackId, destination, reverb) {
     };
   }
 
+  if (
+    trackId === 'bassOne' ||
+    trackId === 'bassTwo' ||
+    trackId === 'bassThree' ||
+    trackId === 'bassFour'
+  ) {
+    const note = voice.note ?? 'C2';
+    const bass = new Tone.MonoSynth({
+      oscillator: {
+        type: 'sawtooth',
+      },
+      envelope: {
+        attack: 0.006,
+        decay: 0.18,
+        sustain: 0.34,
+        release: 0.09,
+      },
+      filter: {
+        type: 'lowpass',
+        frequency: 700,
+        Q: 1.5,
+      },
+      filterEnvelope: {
+        attack: 0.003,
+        decay: 0.16,
+        sustain: 0.18,
+        release: 0.08,
+        baseFrequency: 80,
+        octaves: 3.6,
+      },
+      volume: -8,
+    }).connect(destination);
+
+    return {
+      trigger(time) {
+        bass.triggerAttackRelease(note, '16n', time, 0.82);
+      },
+      dispose() {
+        bass.dispose();
+      },
+    };
+  }
+
   return {
     trigger() {},
     dispose() {},
@@ -218,7 +261,7 @@ function createTrackEngine(trackId, voice, destination, reverb) {
     return createSampleEngine(voice.sampleId, destination);
   }
 
-  return createSynthEngine(trackId, destination, reverb);
+  return createSynthEngine(trackId, voice, destination, reverb);
 }
 
 /**

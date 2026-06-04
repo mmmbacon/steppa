@@ -1,4 +1,4 @@
-/** @typedef {'kick' | 'snare' | 'clap' | 'closedHat' | 'openHat'} TrackId */
+/** @typedef {'kick' | 'snare' | 'clap' | 'closedHat' | 'openHat' | 'bassOne' | 'bassTwo' | 'bassThree' | 'bassFour'} TrackId */
 
 /** @typedef {'kick' | 'snare' | 'clap' | 'closedHat' | 'openHat'} SoundCategory */
 
@@ -97,7 +97,7 @@ export function getCategoryForTrack(trackId) {
  */
 export function getSamplesForTrack(trackId) {
   const category = getCategoryForTrack(trackId);
-  return sampleIdsByCategory[category].map((id) => ({
+  return (sampleIdsByCategory[category] ?? []).map((id) => ({
     id,
     label: id.toUpperCase(),
   }));
@@ -116,7 +116,7 @@ export function getSampleUrl(sampleId) {
  * @returns {string | undefined}
  */
 export function getDefaultSampleId(trackId) {
-  return sampleIdsByCategory[getCategoryForTrack(trackId)][0];
+  return sampleIdsByCategory[getCategoryForTrack(trackId)]?.[0];
 }
 
 /**
@@ -127,16 +127,17 @@ export function getDefaultSampleId(trackId) {
 export function normalizeVoice(trackId, voice) {
   const samples = getSamplesForTrack(trackId);
   const defaultSampleId = samples[0]?.id ?? '';
+  const extraVoiceProps = voice.note ? { note: voice.note } : {};
 
   if (voice.mode === VoiceMode.SAMPLE) {
     const sampleId = samples.some((s) => s.id === voice.sampleId)
       ? voice.sampleId
       : defaultSampleId;
 
-    return { mode: VoiceMode.SAMPLE, sampleId };
+    return { mode: VoiceMode.SAMPLE, sampleId, ...extraVoiceProps };
   }
 
-  return { mode: VoiceMode.SYNTH, sampleId: defaultSampleId };
+  return { mode: VoiceMode.SYNTH, sampleId: defaultSampleId, ...extraVoiceProps };
 }
 
 /**

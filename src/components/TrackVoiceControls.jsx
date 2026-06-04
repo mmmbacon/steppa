@@ -7,6 +7,7 @@ import {
 
 function TrackVoiceControls({ track, voice, onPreview, onVoiceChange }) {
   const samples = getSamplesForTrack(track.id);
+  const hasSamples = samples.length > 0;
   const isSampleMode = voice.mode === VoiceMode.SAMPLE;
 
   const handleModeChange = (event) => {
@@ -46,27 +47,30 @@ function TrackVoiceControls({ track, voice, onPreview, onVoiceChange }) {
       <select
         aria-label={`${track.name} voice type`}
         className="voice-select voice-select-mode"
+        disabled={!hasSamples}
         onChange={handleModeChange}
         value={voice.mode}
       >
         <option value={VoiceMode.SYNTH}>Syn</option>
-        <option value={VoiceMode.SAMPLE}>Smp</option>
+        {hasSamples && <option value={VoiceMode.SAMPLE}>Smp</option>}
       </select>
 
-      <select
-        aria-label={`${track.name} sample`}
-        className="voice-select voice-select-sample"
-        disabled={!isSampleMode || samples.length === 0}
-        onChange={handleSampleChange}
-        title={isSampleMode ? voice.sampleId : 'Select sample mode'}
-        value={isSampleMode ? voice.sampleId : createDefaultVoice(track.id).sampleId}
-      >
-        {samples.map((sample) => (
-          <option key={sample.id} value={sample.id}>
-            {sample.id}
-          </option>
-        ))}
-      </select>
+      {hasSamples && (
+        <select
+          aria-label={`${track.name} sample`}
+          className="voice-select voice-select-sample"
+          disabled={!isSampleMode}
+          onChange={handleSampleChange}
+          title={isSampleMode ? voice.sampleId : 'Select sample mode'}
+          value={isSampleMode ? voice.sampleId : createDefaultVoice(track.id).sampleId}
+        >
+          {samples.map((sample) => (
+            <option key={sample.id} value={sample.id}>
+              {sample.id}
+            </option>
+          ))}
+        </select>
+      )}
     </div>
   );
 }
