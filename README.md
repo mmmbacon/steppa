@@ -24,3 +24,10 @@ I built this for fun, and because I love electronic music!
 ## Notes
 
 The current version uses synthesized drum voices in Tone.js so it can run without sample assets. Adding sample packs back later should be done as a dedicated feature with real asset management.
+
+## Screenshots
+
+<img width="3840" height="2160" alt="screenshot1" src="https://github.com/user-attachments/assets/cd87992e-792e-4a47-9a75-628f351c2823" />
+
+<img width="3840" height="2160" alt="screenshot2" src="https://github.com/user-attachments/assets/04c73e00-fb34-4dd1-a834-673262145479" />
+
